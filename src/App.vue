@@ -34,8 +34,9 @@
             >
             <div class="mt-1 relative rounded-md shadow-md">
               <input
-                v-model="inputText"
-                v-on:keydown.enter="addCoin(inputText)"
+                :value="inputText"
+                @input="(e) => inputHandler(e.target.value)"
+                @keydown.enter="addCoin(inputText)"
                 type="text"
                 name="wallet"
                 id="wallet"
@@ -45,6 +46,7 @@
             </div>
             <div
               class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
+              v-if="this.suggestedCoins.length > 0"
             >
               <span
                 v-for="coin in this.suggestedCoins"
@@ -206,6 +208,7 @@ export default {
         }, 5000);
       }
     },
+
     removeCoin(coin1) {
       if (this.currentCoin.name === coin1.name) {
         this.currentCoin.name = "";
@@ -222,6 +225,20 @@ export default {
       const diff = max - min;
       return this.graph.map((item) => ((item - min) / diff) * 95 + 5);
     },
+    inputHandler(data) {
+      this.inputText = data;
+      this.suggestedCoins = this.coins
+        .filter((coin) => coin.toLowerCase().includes(data.toLowerCase()))
+        .slice(0, 4);
+      this.isAdded = false;
+    },
+    async getCoins() {
+      await fetch(
+        "https://min-api.cryptocompare.com/data/blockchain/list?api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587"
+      )
+        .then((response) => response.json())
+        .then((data) => (this.coins = Object.keys(data.Data)));
+    },
   },
 
   data() {
@@ -231,30 +248,13 @@ export default {
       currentCoin: { name: "", price: 0 },
       coinList: [],
       isAdded: false,
-      suggestedCoins: [
-        "BTC",
-        "DOGE",
-        "BCH",
-        "TWT",
-        "ETH",
-        "XRP",
-        "ADA",
-        "DOT",
-        "LTC",
-        "LINK",
-        "XLM",
-        "BNB",
-        "UNI",
-        "XMR",
-        "SOL",
-        "USDT",
-        "TRX",
-        "THETA",
-      ],
+      coins: [],
+      suggestedCoins: [],
       graph: [],
     };
   },
   beforeMount() {
+    this.getCoins();
     this.isMounted = false;
   },
   mounted() {
@@ -262,5 +262,3 @@ export default {
   },
 };
 </script>
-
-<style src="./app.css"></style>
