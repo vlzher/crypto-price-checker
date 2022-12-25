@@ -34,8 +34,7 @@
             >
             <div class="mt-1 relative rounded-md shadow-md">
               <input
-                :value="inputText"
-                @input="(e) => inputHandler(e.target.value)"
+                v-model="inputText"
                 @keydown.enter="addCoin(inputText)"
                 type="text"
                 name="wallet"
@@ -46,15 +45,15 @@
             </div>
             <div
               class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
-              v-if="this.suggestedCoins.length > 0"
+              v-if="this.suggestedCoinNames.length > 0"
             >
               <span
-                v-for="coin in this.suggestedCoins"
-                :key="coin"
+                v-for="coinName in this.suggestedCoinNames"
+                :key="coinName"
                 class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-                @click="addCoin(coin)"
+                @click="addCoin(coinName)"
               >
-                {{ coin }}
+                {{ coinName }}
               </span>
             </div>
             <div v-if="isAdded" class="text-sm text-red-600">
@@ -64,10 +63,9 @@
         </div>
         <button
           type="button"
-          @click="() => addCoin(this.inputText)"
+          @click="addCoin(this.inputText)"
           class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
-          <!-- Heroicon name: solid/mail -->
           <svg
             class="-ml-0.5 mr-2 h-6 w-6"
             xmlns="http://www.w3.org/2000/svg"
@@ -92,13 +90,13 @@
         <input v-model="filter" />
         <button
           v-if="page > 1"
-          @click="page = page - 1"
+          @click="page = +page - 1"
           class="ml-10 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
           Back
         </button>
         <button
-          @click="page = page + 1"
+          @click="page = +page + 1"
           v-if="isLastPage"
           class="ml-5 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
@@ -107,14 +105,11 @@
       </div>
       <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
         <div
-          v-for="coin in this.filteredList()"
+          v-for="coin in this.paginatedList"
           :key="coin.name"
-          @click="
-            currentCoin = coin;
-            this.graph = [];
-          "
-          :class="currentCoin.name === coin.name ? 'border-4' : ''"
-          class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid border-0 cursor-pointer"
+          @click="currentCoin = coin"
+          :class="currentCoin.name === coin.name ? 'border-4' : 'border-0'"
+          class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
         >
           <div class="px-4 py-5 sm:p-6 text-center">
             <dt class="text-sm font-medium text-gray-500 truncate">
@@ -148,7 +143,7 @@
       </dl>
       <hr
         class="w-full border-t border-gray-600 my-4"
-        v-if="this.coinList.length > 0"
+        v-if="coinList.length > 0"
       />
       <section class="relative" v-if="currentCoin.name">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
@@ -156,7 +151,7 @@
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-            v-for="(percent, idx) in normalizeGraph()"
+            v-for="(percent, idx) in normalizedGraph"
             :key="idx"
             class="bg-purple-800 border w-10"
             :style="{ height: percent + '%' }"
@@ -199,96 +194,113 @@ export default {
   name: "App",
 
   methods: {
-    filteredList() {
-      const start = (this.page - 1) * 6;
-      const end = start + 6;
-
-      const filteredList = this.coinList.filter((coin) => {
-        return coin.name.toLowerCase().includes(this.filter.toLowerCase());
-      });
-      this.isLastPage = end < filteredList.length;
-      return filteredList.slice(start, end);
-    },
     addCoin(name) {
-      if (this.checkCoin(name)) {
-        this.isAdded = true;
-      } else {
-        this.isAdded = false;
-        this.coinList.push({
+      if (!this.checkIfAdded(name)) {
+        const currentCoin = {
           name: name.toUpperCase(),
           price: 0,
-        });
-        localStorage.setItem("coinList", JSON.stringify(this.coinList));
-        this.subsribeToUpdates(name);
+        };
+        this.coinList = [...this.coinList, currentCoin];
+        this.subscribeToUpdates(currentCoin);
       }
     },
 
-    removeCoin(coin1) {
-      if (this.currentCoin.name === coin1.name) {
+    removeCoin(coin) {
+      if (this.currentCoin.name === coin.name) {
         this.currentCoin.name = "";
         this.currentCoin.price = 0;
+        this.currentCoin.interval = 0;
       }
-      this.coinList = this.coinList.filter((coin) => coin.name !== coin1.name);
+      this.coinList = this.coinList.filter((coin1) => coin1.name !== coin.name);
+      this.unsubscribeToUpdates(coin);
     },
-    subsribeToUpdates(name) {
-      setInterval(async () => {
+    subscribeToUpdates(coin) {
+      coin.interval = setInterval(async () => {
         const response = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${name}&tsyms=USD&api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587`
+          `https://min-api.cryptocompare.com/data/price?fsym=${coin.name}&tsyms=USD&api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587`
         );
         const data = await response.json();
-        if (name === this.currentCoin.name) {
+        if (coin.name === this.currentCoin.name) {
           this.graph.push(data.USD);
         }
-        this.coinList.find((coin) => {
-          if (coin.name.toLowerCase() === name.toLowerCase()) {
-            coin.price =
-              data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-          }
-        });
+        coin.price =
+          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
       }, 5000);
     },
-    checkCoin(name) {
-      return this.coinList.some(
-        (coin) => coin.name.toLowerCase() === name.toLowerCase()
-      );
-    },
-    normalizeGraph() {
-      const max = Math.max(...this.graph);
-      const min = Math.min(...this.graph);
-      const diff = max - min;
-      return this.graph.map((item) => ((item - min) / diff) * 95 + 5);
-    },
-    inputHandler(data) {
-      this.inputText = data;
-      this.suggestedCoins = this.coins
-        .filter((coin) => coin.toLowerCase().includes(data.toLowerCase()))
-        .slice(0, 4);
-      this.isAdded = false;
+    unsubscribeToUpdates(coin) {
+      clearInterval(coin.interval);
     },
     async getCoins() {
       await fetch(
         "https://min-api.cryptocompare.com/data/blockchain/list?api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587"
       )
         .then((response) => response.json())
-        .then((data) => (this.coins = Object.keys(data.Data)));
+        .then((data) => (this.availableCoins = Object.keys(data.Data)));
+    },
+    checkIfAdded(name) {
+      this.isAdded = this.coinList.some(
+        (coin) => coin.name.toLowerCase() === name.toLowerCase()
+      );
+      return this.isAdded;
     },
   },
 
   data() {
     return {
       isMounted: false,
-      inputText: "",
-      currentCoin: { name: "", price: 0 },
-      coinList: [],
       isAdded: false,
-      coins: [],
-      suggestedCoins: [],
-      graph: [],
-      page: 1,
+      inputText: "",
       filter: "",
-      isLastPage: false,
+      currentCoin: { name: "", price: 0, interval: 0 },
+      graph: [],
+      coinList: [],
+      availableCoins: [],
+      page: 1,
     };
   },
+  computed: {
+    suggestedCoinNames() {
+      if (this.inputText) {
+        return this.availableCoins
+          .filter((coin) =>
+            coin.toLowerCase().includes(this.inputText.toLowerCase())
+          )
+          .slice(0, 4);
+      } else {
+        return [];
+      }
+    },
+    normalizedGraph() {
+      const max = Math.max(...this.graph);
+      const min = Math.min(...this.graph);
+      const diff = max - min;
+      return this.graph.map((item) => ((item - min) / diff) * 95 + 5);
+    },
+    startPage() {
+      return (+this.page - 1) * 6;
+    },
+    endPage() {
+      return +this.page * 6;
+    },
+    filteredList() {
+      return this.coinList.filter((coin) => {
+        return coin.name.toLowerCase().includes(this.filter.toLowerCase());
+      });
+    },
+    paginatedList() {
+      return this.filteredList.slice(this.startPage, this.endPage);
+    },
+    isLastPage() {
+      return this.endPage < this.filteredList.length;
+    },
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      };
+    },
+  },
+
   created() {
     const windowData = Object.fromEntries(
       new URL(window.location).searchParams.entries()
@@ -304,25 +316,23 @@ export default {
     if (localStorage.getItem("coinList")) {
       this.coinList = JSON.parse(localStorage.getItem("coinList"));
       this.coinList.forEach((coin) => {
-        this.subsribeToUpdates(coin.name);
+        this.subscribeToUpdates(coin);
       });
     }
   },
   watch: {
+    currentCoin() {
+      this.graph = [];
+    },
+    coinList() {
+      localStorage.setItem("coinList", JSON.stringify(this.coinList));
+    },
     filter() {
       this.page = 1;
-      window.history.pushState(
-        {},
-        "",
-        `?filter=${this.filter}&page=${this.page}`
-      );
     },
-    page() {
-      window.history.pushState(
-        {},
-        "",
-        `?filter=${this.filter}&page=${this.page}`
-      );
+    pageStateOptions(v) {
+      this.currentCoin = { name: "", price: 0, interval: 0 };
+      window.history.pushState({}, "", `?filter=${v.filter}&page=${v.page}`);
     },
   },
   beforeMount() {
