@@ -83,14 +83,31 @@
           Add
         </button>
       </section>
-
       <hr
         v-if="this.coinList.length > 0"
         class="w-full border-t border-gray-600 my-4"
       />
+      <div>
+        Filter:
+        <input v-model="filter" />
+        <button
+          v-if="page > 1"
+          @click="page = page - 1"
+          class="ml-10 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+        >
+          Back
+        </button>
+        <button
+          @click="page = page + 1"
+          v-if="isLastPage"
+          class="ml-5 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+        >
+          Forward
+        </button>
+      </div>
       <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
         <div
-          v-for="coin in coinList"
+          v-for="coin in this.filteredList()"
           :key="coin.name"
           @click="
             currentCoin = coin;
@@ -182,30 +199,27 @@ export default {
   name: "App",
 
   methods: {
+    filteredList() {
+      const start = (this.page - 1) * 6;
+      const end = start + 6;
+
+      const filteredList = this.coinList.filter((coin) => {
+        return coin.name.toLowerCase().includes(this.filter.toLowerCase());
+      });
+      this.isLastPage = end < filteredList.length;
+      return filteredList.slice(start, end);
+    },
     addCoin(name) {
       if (this.checkCoin(name)) {
         this.isAdded = true;
       } else {
         this.isAdded = false;
         this.coinList.push({
-          name: name,
+          name: name.toUpperCase(),
           price: 0,
         });
-        setInterval(async () => {
-          const response = await fetch(
-            `https://min-api.cryptocompare.com/data/price?fsym=${name}&tsyms=USD&api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587`
-          );
-          const data = await response.json();
-          if (name === this.currentCoin.name) {
-            this.graph.push(data.USD);
-          }
-          this.coinList.find((coin) => {
-            if (coin.name === name) {
-              coin.price =
-                data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-            }
-          });
-        }, 5000);
+        localStorage.setItem("coinList", JSON.stringify(this.coinList));
+        this.subsribeToUpdates(name);
       }
     },
 
@@ -216,8 +230,27 @@ export default {
       }
       this.coinList = this.coinList.filter((coin) => coin.name !== coin1.name);
     },
+    subsribeToUpdates(name) {
+      setInterval(async () => {
+        const response = await fetch(
+          `https://min-api.cryptocompare.com/data/price?fsym=${name}&tsyms=USD&api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587`
+        );
+        const data = await response.json();
+        if (name === this.currentCoin.name) {
+          this.graph.push(data.USD);
+        }
+        this.coinList.find((coin) => {
+          if (coin.name.toLowerCase() === name.toLowerCase()) {
+            coin.price =
+              data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+          }
+        });
+      }, 5000);
+    },
     checkCoin(name) {
-      return this.coinList.some((coin) => coin.name === name);
+      return this.coinList.some(
+        (coin) => coin.name.toLowerCase() === name.toLowerCase()
+      );
     },
     normalizeGraph() {
       const max = Math.max(...this.graph);
@@ -251,7 +284,46 @@ export default {
       coins: [],
       suggestedCoins: [],
       graph: [],
+      page: 1,
+      filter: "",
+      isLastPage: false,
     };
+  },
+  created() {
+    const windowData = Object.fromEntries(
+      new URL(window.location).searchParams.entries()
+    );
+
+    if (windowData.filter) {
+      this.filter = windowData.filter;
+    }
+    if (windowData.page) {
+      this.page = windowData.page;
+    }
+
+    if (localStorage.getItem("coinList")) {
+      this.coinList = JSON.parse(localStorage.getItem("coinList"));
+      this.coinList.forEach((coin) => {
+        this.subsribeToUpdates(coin.name);
+      });
+    }
+  },
+  watch: {
+    filter() {
+      this.page = 1;
+      window.history.pushState(
+        {},
+        "",
+        `?filter=${this.filter}&page=${this.page}`
+      );
+    },
+    page() {
+      window.history.pushState(
+        {},
+        "",
+        `?filter=${this.filter}&page=${this.page}`
+      );
+    },
   },
   beforeMount() {
     this.getCoins();
