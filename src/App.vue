@@ -190,6 +190,13 @@
 </template>
 
 <script>
+import {
+  getAvailableCoins,
+  loadCoins,
+  subscribeToCoin,
+  unsubscribeFromCoin,
+} from "@/api";
+
 export default {
   name: "App",
 
@@ -201,7 +208,9 @@ export default {
           price: 0,
         };
         this.coinList = [...this.coinList, currentCoin];
-        this.subscribeToUpdates(currentCoin);
+        subscribeToCoin(currentCoin.name.toLowerCase(), (price) =>
+          this.updateCoinPrice(currentCoin.name, price)
+        );
       }
     },
 
@@ -212,36 +221,26 @@ export default {
         this.currentCoin.interval = 0;
       }
       this.coinList = this.coinList.filter((coin1) => coin1.name !== coin.name);
-      this.unsubscribeToUpdates(coin);
+      unsubscribeFromCoin(coin.name);
     },
-    subscribeToUpdates(coin) {
-      coin.interval = setInterval(async () => {
-        const response = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${coin.name}&tsyms=USD&api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587`
-        );
-        const data = await response.json();
-        if (coin.name === this.currentCoin.name) {
-          this.graph.push(data.USD);
-        }
-        coin.price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-      }, 5000);
-    },
-    unsubscribeToUpdates(coin) {
-      clearInterval(coin.interval);
-    },
-    async getCoins() {
-      await fetch(
-        "https://min-api.cryptocompare.com/data/blockchain/list?api_key=4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587"
-      )
-        .then((response) => response.json())
-        .then((data) => (this.availableCoins = Object.keys(data.Data)));
-    },
+
     checkIfAdded(name) {
       this.isAdded = this.coinList.some(
         (coin) => coin.name.toLowerCase() === name.toLowerCase()
       );
       return this.isAdded;
+    },
+
+    updateCoinPrice(name, price) {
+      this.addPriceToGraph(name, price);
+      this.coinList
+        .filter((coin) => coin.name === name)
+        .forEach((t) => (t.price = price));
+    },
+    addPriceToGraph(name, price) {
+      if (name === this.currentCoin.name) {
+        this.graph.push(price);
+      }
     },
   },
 
@@ -251,7 +250,7 @@ export default {
       isAdded: false,
       inputText: "",
       filter: "",
-      currentCoin: { name: "", price: 0, interval: 0 },
+      currentCoin: { name: "", price: 0 },
       graph: [],
       coinList: [],
       availableCoins: [],
@@ -273,6 +272,9 @@ export default {
     normalizedGraph() {
       const max = Math.max(...this.graph);
       const min = Math.min(...this.graph);
+      if (max === min) {
+        return this.graph.map(() => 50);
+      }
       const diff = max - min;
       return this.graph.map((item) => ((item - min) / diff) * 95 + 5);
     },
@@ -316,9 +318,12 @@ export default {
     if (localStorage.getItem("coinList")) {
       this.coinList = JSON.parse(localStorage.getItem("coinList"));
       this.coinList.forEach((coin) => {
-        this.subscribeToUpdates(coin);
+        subscribeToCoin(coin.name.toUpperCase(), (price) =>
+          this.updateCoinPrice(coin.name.toUpperCase(), price)
+        );
       });
     }
+    loadCoins();
   },
   watch: {
     currentCoin() {
@@ -331,13 +336,13 @@ export default {
       this.page = 1;
     },
     pageStateOptions(v) {
-      this.currentCoin = { name: "", price: 0, interval: 0 };
+      this.currentCoin = { name: "", price: 0 };
       window.history.pushState({}, "", `?filter=${v.filter}&page=${v.page}`);
     },
   },
-  beforeMount() {
-    this.getCoins();
+  async beforeMount() {
     this.isMounted = false;
+    this.availableCoins = await getAvailableCoins();
   },
   mounted() {
     this.isMounted = true;
