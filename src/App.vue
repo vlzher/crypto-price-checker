@@ -190,12 +190,7 @@
 </template>
 
 <script>
-import {
-  getAvailableCoins,
-  loadCoins,
-  subscribeToCoin,
-  unsubscribeFromCoin,
-} from "@/api";
+import { getAvailableCoins, subscribeToCoin, unsubscribeFromCoin } from "@/api";
 
 export default {
   name: "App",
@@ -323,14 +318,16 @@ export default {
         );
       });
     }
-    loadCoins();
   },
   watch: {
     currentCoin() {
       this.graph = [];
     },
-    coinList() {
-      localStorage.setItem("coinList", JSON.stringify(this.coinList));
+    coinList: {
+      handler() {
+        localStorage.setItem("coinList", JSON.stringify(this.coinList));
+      },
+      deep: true,
     },
     filter() {
       this.page = 1;

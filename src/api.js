@@ -3,7 +3,7 @@ const API_KEY =
 
 const coins = new Map();
 
-export const loadCoins = () => {
+const loadCoins = () => {
   if (coins.size === 0) {
     return;
   }
