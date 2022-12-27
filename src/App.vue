@@ -108,8 +108,11 @@
           v-for="coin in this.paginatedList"
           :key="coin.name"
           @click="currentCoin = coin"
-          :class="currentCoin.name === coin.name ? 'border-4' : 'border-0'"
-          class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
+          :class="[
+            currentCoin.name === coin.name ? 'border-4' : 'border-0',
+            coin.isValid ? 'bg-white-100' : 'bg-red-100',
+          ]"
+          class="overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
         >
           <div class="px-4 py-5 sm:p-6 text-center">
             <dt class="text-sm font-medium text-gray-500 truncate">
@@ -190,12 +193,18 @@
 </template>
 
 <script>
-import { getAvailableCoins, subscribeToCoin, unsubscribeFromCoin } from "@/api";
+import {
+  getAvailableCoins,
+  isCoinValid,
+  subscribeToCoin,
+  unsubscribeFromCoin,
+} from "@/api/api";
 
 export default {
   name: "App",
 
   methods: {
+    isCoinValid,
     addCoin(name) {
       if (!this.checkIfAdded(name)) {
         const currentCoin = {
@@ -245,7 +254,7 @@ export default {
       isAdded: false,
       inputText: "",
       filter: "",
-      currentCoin: { name: "", price: 0 },
+      currentCoin: { name: "", price: 0, isValid: true },
       graph: [],
       coinList: [],
       availableCoins: [],
@@ -325,6 +334,9 @@ export default {
     },
     coinList: {
       handler() {
+        this.coinList.forEach(
+          (coin) => (coin.isValid = isCoinValid(coin.name))
+        );
         localStorage.setItem("coinList", JSON.stringify(this.coinList));
       },
       deep: true,
