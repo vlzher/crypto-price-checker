@@ -2,17 +2,25 @@ const API_KEY =
   "4afb0518d5d1953fbc80d99670295d1a256c42d4432852c4b27e0ef762272587";
 const AGGREGATE_INDEX = "5";
 const INVALID_SUB = "500";
+const TOO_MANY_SOCKETS = "429";
 
 const coins = new Map();
 const coinsValidated = new Map();
 const socket = new WebSocket(
   "wss://streamer.cryptocompare.com/v2?api_key=" + API_KEY
 );
+const myWorker = new SharedWorker("sharedWorkerConfig.js");
+myWorker.port.start();
+let isMainSocket = true;
 let BTCUSD = 0;
 
+const sendToWorker = (message) => {
+  myWorker.port.postMessage(JSON.stringify(message));
+};
 const addSocketMessageListener = (type, func) => {
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
+    sendToWorker(message);
     if (message.TYPE === type) {
       func(message);
     }
@@ -69,27 +77,48 @@ const sendToWS = (message) => {
 };
 
 const subscribeToCoinWSBTC = (coin) => {
-  sendToWS({
+  const sendFunc = isMainSocket ? sendToWS : sendToWorker;
+  sendFunc({
     action: "SubAdd",
     subs: [`5~CCCAGG~${coin}~BTC`],
   });
 };
 const unsubscribeFromCoinWSBTC = (coin) => {
-  sendToWS({
+  const sendFunc = isMainSocket ? sendToWS : sendToWorker;
+  sendFunc({
     action: "SubRemove",
     subs: [`5~CCCAGG~${coin}~BTC`],
   });
 };
 const subscribeToCoinWSUSD = (coin) => {
-  sendToWS({
+  const sendFunc = isMainSocket ? sendToWS : sendToWorker;
+  sendFunc({
     action: "SubAdd",
     subs: [`5~CCCAGG~${coin}~USD`],
   });
 };
 const unsubscribeFromCoinWSUSD = (coin) => {
-  sendToWS({
+  const sendFunc = isMainSocket ? sendToWS : sendToWorker;
+  sendFunc({
     action: "SubRemove",
     subs: [`5~CCCAGG~${coin}~USD`],
+  });
+};
+const addWorkerListener = () => {
+  myWorker.port.onmessage = (e) => {
+    const message = JSON.parse(e.data);
+    if (isMainSocket && message.action?.includes("Sub")) {
+      sendToWS(message);
+    } else {
+      updateCoin(message);
+      isCorrectCoin(message);
+    }
+  };
+};
+
+const addAnotherSocketIsOpenListener = () => {
+  addSocketMessageListener(TOO_MANY_SOCKETS, () => {
+    isMainSocket = false;
   });
 };
 export const subscribeToCoin = (coin, cb) => {
@@ -114,6 +143,8 @@ export const getAvailableCoins = async () => {
 
 addUpdateCoinListenerWS();
 addValidateCoinListenerWS();
+addAnotherSocketIsOpenListener();
+addWorkerListener();
 subscribeToCoin("BTC", (price) => {
   BTCUSD = price;
 });
