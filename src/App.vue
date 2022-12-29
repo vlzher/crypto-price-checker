@@ -159,6 +159,7 @@
           <div
             v-for="(percent, idx) in normalizedGraph"
             :key="idx"
+            ref="graphComponent"
             class="bg-purple-800 border w-10"
             :style="{ height: percent + '%' }"
           ></div>
@@ -248,6 +249,13 @@ export default {
         this.graph.push(price);
       }
     },
+    resizeGraph() {
+      if (this.$refs.graph && this.$refs.graphComponent) {
+        this.graphParams.width = this.$refs.graph.offsetWidth;
+        this.graphParams.componentWidth =
+          this.$refs.graphComponent[0].offsetWidth;
+      }
+    },
   },
 
   data() {
@@ -261,6 +269,7 @@ export default {
       coinList: [],
       availableCoins: [],
       page: 1,
+      graphParams: { width: 0, componentWidth: 0 },
     };
   },
   computed: {
@@ -276,13 +285,30 @@ export default {
       }
     },
     normalizedGraph() {
+      this.resizeGraph();
+      if (
+        this.graphParams.width === 0 ||
+        this.graphParams.componentWidth === 0
+      ) {
+        return this.graph.map(() => 0);
+      }
       const max = Math.max(...this.graph);
       const min = Math.min(...this.graph);
       if (max === min) {
         return this.graph.map(() => 50);
       }
       const diff = max - min;
-      return this.graph.map((item) => ((item - min) / diff) * 95 + 5);
+      const maxElems = Math.round(
+        this.graphParams.width / this.graphParams.componentWidth
+      );
+      const toSlice = this.graph.length > maxElems;
+      let computedGraph = this.graph.map(
+        (item) => ((item - min) / diff) * 95 + 5
+      );
+      if (toSlice) {
+        computedGraph = computedGraph.slice(this.graph.length - maxElems);
+      }
+      return computedGraph;
     },
     startPage() {
       return (+this.page - 1) * 6;
@@ -357,6 +383,15 @@ export default {
   },
   mounted() {
     this.isMounted = true;
+    this.resizeGraph();
+    window.addEventListener("resize", () => {
+      this.resizeGraph();
+    });
+  },
+  unmounted() {
+    window.removeEventListener("resize", () => {
+      this.resizeGraph();
+    });
   },
 };
 </script>
