@@ -107,7 +107,7 @@
         <div
           v-for="coin in this.paginatedList"
           :key="coin.name"
-          @click="currentCoin = coin"
+          @click="setCurrentCoin(coin)"
           :class="[
             currentCoin.name === coin.name ? 'border-4' : 'border-0',
             coin.isValid ? 'bg-white-100' : 'bg-red-100',
@@ -208,6 +208,10 @@ export default {
   name: "App",
 
   methods: {
+    setCurrentCoin(coin) {
+      this.currentCoin = coin;
+      this.$nextTick().then(this.resizeGraph);
+    },
     addCoin(name) {
       if (!this.checkIfAdded(name)) {
         const currentCoin = {
@@ -247,6 +251,9 @@ export default {
     addPriceToGraph(name, price) {
       if (name === this.currentCoin.name) {
         this.graph.push(price);
+        if (this.graph.length === 1) {
+          this.$nextTick().then(this.resizeGraph);
+        }
       }
     },
     resizeGraph() {
@@ -285,13 +292,6 @@ export default {
       }
     },
     normalizedGraph() {
-      this.resizeGraph();
-      if (
-        this.graphParams.width === 0 ||
-        this.graphParams.componentWidth === 0
-      ) {
-        return this.graph.map(() => 0);
-      }
       const max = Math.max(...this.graph);
       const min = Math.min(...this.graph);
       if (max === min) {
@@ -383,7 +383,6 @@ export default {
   },
   mounted() {
     this.isMounted = true;
-    this.resizeGraph();
     window.addEventListener("resize", () => {
       this.resizeGraph();
     });
