@@ -20,9 +20,9 @@ const sendToWorker = (message) => {
 const addSocketMessageListener = (type, func) => {
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
-    sendToWorker(message);
     if (message.TYPE === type) {
       func(message);
+      sendToWorker(message);
     }
   });
 };
@@ -47,16 +47,22 @@ const addValidateCoinListenerWS = () => {
 };
 export const isCoinValid = (coin) => coinsValidated.get(coin) ?? true;
 const updateCoin = (message) => {
-  const { FROMSYMBOL: currency, PRICE: price, TOSYMBOl: toCurrency } = message;
-  if (price) {
-    const handlers = coins.get(currency) ?? [];
-    let correctedPrice = price;
-    if (toCurrency === "BTC") {
-      correctedPrice = price * BTCUSD;
-    }
-    correctedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
+  if (message.TYPE === AGGREGATE_INDEX) {
+    const {
+      FROMSYMBOL: currency,
+      PRICE: price,
+      TOSYMBOL: toCurrency,
+    } = message;
+    if (price) {
+      const handlers = coins.get(currency) ?? [];
+      let correctedPrice = price;
+      if (toCurrency === "BTC") {
+        correctedPrice = price * BTCUSD;
+      }
+      correctedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
 
-    handlers.forEach((f) => f(correctedPrice));
+      handlers.forEach((f) => f(correctedPrice));
+    }
   }
 };
 const addUpdateCoinListenerWS = () =>
@@ -107,8 +113,10 @@ const unsubscribeFromCoinWSUSD = (coin) => {
 const addWorkerListener = () => {
   myWorker.port.onmessage = (e) => {
     const message = JSON.parse(e.data);
-    if (isMainSocket && message.action?.includes("Sub")) {
-      sendToWS(message);
+    if (isMainSocket) {
+      if (message.action?.includes("Sub")) {
+        sendToWS(message);
+      }
     } else {
       updateCoin(message);
       isCorrectCoin(message);

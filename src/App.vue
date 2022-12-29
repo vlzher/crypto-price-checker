@@ -152,7 +152,10 @@
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
           {{ currentCoin.name }} - USD
         </h3>
-        <div class="flex items-end border-gray-600 border-b border-l h-64">
+        <div
+          ref="graph"
+          class="flex items-end border-gray-600 border-b border-l h-64"
+        >
           <div
             v-for="(percent, idx) in normalizedGraph"
             :key="idx"
@@ -204,7 +207,6 @@ export default {
   name: "App",
 
   methods: {
-    isCoinValid,
     addCoin(name) {
       if (!this.checkIfAdded(name)) {
         const currentCoin = {
