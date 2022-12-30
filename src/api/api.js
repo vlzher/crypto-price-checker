@@ -59,8 +59,10 @@ const updateCoin = (message) => {
       if (toCurrency === "BTC") {
         correctedPrice = price * BTCUSD;
       }
-      correctedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
-
+      correctedPrice =
+        correctedPrice > 1
+          ? correctedPrice.toFixed(2)
+          : correctedPrice.toPrecision(2);
       handlers.forEach((f) => f(correctedPrice));
     }
   }
