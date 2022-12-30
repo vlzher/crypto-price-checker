@@ -34,7 +34,7 @@
         </div>
       </div>
     </div>
-    <add-coin-button @addCoin="addCoin(this.inputText)" />
+    <add-coin-button @click="addCoin(this.inputText)" />
   </section>
 </template>
 <script>
