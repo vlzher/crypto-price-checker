@@ -34,7 +34,10 @@
       <filter-page-button-section
         :coinList="coinList"
         @paginatedList="(list) => (this.paginatedList = list)"
-        @turnOffGraph="this.isGraphOpened = false"
+        @turnOffGraph="
+          this.currentCoin = {};
+          this.isGraphOpened = false;
+        "
       />
       <coin-zone
         :paginatedList="this.paginatedList"

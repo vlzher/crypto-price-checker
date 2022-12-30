@@ -33,6 +33,7 @@ export default {
   emits: {
     paginatedList: Array,
     turnOffGraph: null,
+    removeCurrentCoin: null,
   },
   computed: {
     isLastPage() {
