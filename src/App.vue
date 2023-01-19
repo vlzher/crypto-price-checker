@@ -135,6 +135,7 @@ export default {
   created() {
     if (localStorage.getItem("coinList")) {
       this.coinList = JSON.parse(localStorage.getItem("coinList"));
+      this.paginatedList = JSON.parse(localStorage.getItem("coinList"));
       this.coinList.forEach((coin) => {
         subscribeToCoin(coin.name.toUpperCase(), (price) =>
           this.updateCoinPrice(coin.name.toUpperCase(), price)
